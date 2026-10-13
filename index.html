@@ -291,7 +291,8 @@ function showGate() {
   crumb.innerHTML = ""; view.innerHTML = "";
   const box = el("form", "gate");
   const input = document.createElement("input");
-  input.type = "password"; input.placeholder = "비밀번호"; input.autocomplete = "current-password"; input.setAttribute("aria-label", "비밀번호");
+  input.type = "text"; input.placeholder = "비밀번호"; input.autocomplete = "off"; input.setAttribute("aria-label", "비밀번호");
+  input.setAttribute("autocapitalize", "off"); input.setAttribute("autocorrect", "off"); input.spellcheck = false;
   const btn = el("button", "", "열기"); btn.type = "submit";
   const err = el("div", "err");
   box.append(el("h1", "", "영상 보관함"), el("p", "", "비밀번호를 입력하세요"), input, btn, err);
