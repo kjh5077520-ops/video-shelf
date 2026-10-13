@@ -67,6 +67,21 @@
   .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   .hint { color: var(--sub); font-size: 0.78rem; margin-top: 10px; }
   .empty { text-align: center; color: var(--sub); padding: 56px 16px; border: 1px dashed var(--line); border-radius: 14px; line-height: 1.7; }
+  .gate { max-width: 340px; margin: 18vh auto 0; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 28px 24px; text-align: center; }
+  .gate h1 { font-size: 1.2rem; margin-bottom: 4px; }
+  .gate p { color: var(--sub); font-size: 0.88rem; margin: 0 0 16px; }
+  .gate input {
+    width: 100%; padding: 12px 14px; font-size: 1rem; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--text); margin-bottom: 10px;
+  }
+  .gate input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .gate button {
+    width: 100%; padding: 12px; font-size: 1rem; font-weight: 600; border: 0; border-radius: 10px;
+    background: var(--accent); color: #fff; cursor: pointer;
+  }
+  .gate button:disabled { opacity: .6; cursor: default; }
+  .gate .err { color: #d14343; font-size: 0.85rem; min-height: 1.3em; margin-top: 10px; }
+  .logout { display: block; margin: 28px auto 0; background: none; border: 0; color: var(--sub); font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -254,8 +269,45 @@ document.addEventListener("keydown", e => {
   else if (e.key === "ArrowRight") { e.preventDefault(); vid.currentTime = Math.min(vid.duration || 1e9, vid.currentTime + 5); }
   else if (e.key === "ArrowLeft") { e.preventDefault(); vid.currentTime = Math.max(0, vid.currentTime - 5); }
 });
-window.addEventListener("hashchange", route);
-route();
+// ---- 비밀번호 화면 ----
+// videos.js 에 window.VIDEOS_PW_HASH 가 있으면 비밀번호를 입력해야 목록이 보여요. (없으면 바로 열림)
+// 해시 = PBKDF2-SHA256(비밀번호, salt "video-shelf", 200000회). 비밀번호 자체는 저장하지 않아요.
+const PW_HASH = window.VIDEOS_PW_HASH || "";
+async function pwHash(pw) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: new TextEncoder().encode("video-shelf"), iterations: 200000 }, key, 256);
+  return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+function boot() {
+  window.addEventListener("hashchange", route);
+  route();
+  if (PW_HASH) {
+    const out = el("button", "logout", "잠그기 (이 기기에서 로그아웃)"); out.type = "button";
+    out.addEventListener("click", () => { store("vs-auth", ""); location.hash = ""; location.reload(); });
+    document.querySelector(".wrap").appendChild(out);
+  }
+}
+function showGate() {
+  crumb.innerHTML = ""; view.innerHTML = "";
+  const box = el("form", "gate");
+  const input = document.createElement("input");
+  input.type = "password"; input.placeholder = "비밀번호"; input.autocomplete = "current-password"; input.setAttribute("aria-label", "비밀번호");
+  const btn = el("button", "", "열기"); btn.type = "submit";
+  const err = el("div", "err");
+  box.append(el("h1", "", "영상 보관함"), el("p", "", "비밀번호를 입력하세요"), input, btn, err);
+  box.addEventListener("submit", async e => {
+    e.preventDefault();
+    if (!window.crypto || !crypto.subtle) { err.textContent = "이 주소(https)에서만 비밀번호 확인을 쓸 수 있어요."; return; }
+    btn.disabled = true; err.textContent = "";
+    const h = await pwHash(input.value);
+    btn.disabled = false;
+    if (h === PW_HASH) { store("vs-auth", h); boot(); }
+    else { err.textContent = "비밀번호가 맞지 않아요."; input.value = ""; input.focus(); }
+  });
+  view.appendChild(box);
+  input.focus();
+}
+if (!PW_HASH || store("vs-auth") === PW_HASH) boot(); else showGate();
 </script>
 </body>
 </html>
