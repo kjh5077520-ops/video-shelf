@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>영상 보관함</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1b1f27; --sub: #6b7280;
+    --line: #e3e6eb; --accent: #3a5bc7; --accent-weak: #e8edfb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12141a; --card: #1b1e26; --text: #eceef3; --sub: #9aa1b0;
+      --line: #2a2e39; --accent: #7b96f0; --accent-weak: #232a45;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 16px; margin-bottom: 24px; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  .count { color: var(--sub); font-size: 0.9rem; margin-left: 4px; }
+  .search {
+    margin-left: auto; width: min(100%, 260px); padding: 10px 14px; font-size: 0.95rem;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text);
+  }
+  .search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .item {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+    cursor: pointer; text-align: left; padding: 0; color: inherit; font: inherit;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .item:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.12); }
+  .item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .thumb { position: relative; aspect-ratio: 16 / 9; background: #000; }
+  .thumb video, .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+  .thumb .play {
+    position: absolute; inset: 0; margin: auto; width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(0,0,0,.55); display: grid; place-items: center; color: #fff; font-size: 18px; padding-left: 3px;
+  }
+  .thumb .dur {
+    position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.7); color: #fff;
+    font-size: 0.75rem; padding: 2px 6px; border-radius: 6px;
+  }
+  .thumb .bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); }
+  .meta { padding: 12px 14px 14px; }
+  .title { font-weight: 600; font-size: 0.98rem; line-height: 1.35; margin-bottom: 4px; word-break: break-word; }
+  .sub { color: var(--sub); font-size: 0.82rem; }
+  .section { font-size: 1.15rem; margin: 28px 0 4px; }
+  .group { font-size: 0.95rem; color: var(--sub); margin: 14px 0 10px; font-weight: 600; }
+  .section:first-child { margin-top: 0; }
+  .empty {
+    text-align: center; color: var(--sub); padding: 64px 16px; border: 1px dashed var(--line);
+    border-radius: 14px; line-height: 1.7;
+  }
+  .empty code { background: var(--accent-weak); color: var(--accent); padding: 2px 6px; border-radius: 6px; }
+
+  dialog {
+    border: none; padding: 0; background: var(--card); color: var(--text); border-radius: 16px;
+    width: min(960px, 96vw); max-height: 96vh; overflow: auto;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.72); }
+  .player { background: #000; aspect-ratio: 16 / 9; }
+  .player video, .player iframe { width: 100%; height: 100%; display: block; border: 0; background: #000; }
+  .info { padding: 14px 18px 18px; }
+  .info h2 { margin: 0 0 4px; font-size: 1.1rem; word-break: break-word; }
+  .info .sub { margin-bottom: 12px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .controls .label { color: var(--sub); font-size: 0.85rem; margin-right: 2px; }
+  .chip {
+    border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px;
+    padding: 6px 12px; font-size: 0.85rem; cursor: pointer;
+  }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .close { margin-left: auto; }
+  .hint { color: var(--sub); font-size: 0.78rem; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>영상 보관함<span class="count" id="count"></span></h1>
+    <input class="search" id="search" type="search" placeholder="제목 검색" aria-label="제목 검색">
+  </header>
+  <div id="shelf"></div>
+  <div class="empty" id="empty" hidden></div>
+</div>
+
+<dialog id="dlg">
+  <div class="player" id="player"></div>
+  <div class="info">
+    <h2 id="dTitle"></h2>
+    <div class="sub" id="dSub"></div>
+    <div class="controls" id="controls">
+      <span class="label">속도</span>
+    </div>
+    <div class="hint" id="hint"></div>
+  </div>
+</dialog>
+
+<script src="videos.js"></script>
+<script>
+const VIDEOS = (window.VIDEOS || []).map((v, i) => ({ ...v, id: v.id || (v.file || v.youtube || String(i)) }));
+const shelf = document.getElementById("shelf");
+const empty = document.getElementById("empty");
+const countEl = document.getElementById("count");
+const searchEl = document.getElementById("search");
+const dlg = document.getElementById("dlg");
+const playerBox = document.getElementById("player");
+const dTitle = document.getElementById("dTitle");
+const dSub = document.getElementById("dSub");
+const controls = document.getElementById("controls");
+const hint = document.getElementById("hint");
+
+const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+let current = null;
+
+function store(key, val) { try { if (val === undefined) return localStorage.getItem(key); localStorage.setItem(key, val); } catch (e) { return null; } }
+function posKey(v) { return "vs-pos:" + v.id; }
+function fmt(sec) {
+  if (!isFinite(sec) || sec <= 0) return "";
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0");
+}
+function srcOf(v) { return v.file ? encodeURI(v.file) : ""; }
+
+function render() {
+  const q = searchEl.value.trim().toLowerCase();
+  const list = VIDEOS.filter(v => !q || [v.title, v.note, v.section, v.group].some(x => (x || "").toLowerCase().includes(q)));
+  countEl.textContent = VIDEOS.length ? ` · ${VIDEOS.length}개` : "";
+  shelf.innerHTML = "";
+  empty.hidden = list.length > 0;
+  if (!list.length) {
+    empty.innerHTML = VIDEOS.length
+      ? "검색 결과가 없어요."
+      : "아직 올린 영상이 없어요.<br>영상 파일을 <code>videos/</code> 폴더에 넣고 <code>videos.js</code>에 한 줄 추가하면 여기에 나타나요.";
+  }
+  let curSection = null, curGroup = null, grid = null;
+  list.forEach(v => {
+    if (!grid || v.section !== curSection || v.group !== curGroup) {
+      if (v.section && v.section !== curSection) {
+        const h = document.createElement("h2"); h.className = "section"; h.textContent = v.section; shelf.appendChild(h);
+      }
+      if (v.group) {
+        const h = document.createElement("h3"); h.className = "group"; h.textContent = v.group; shelf.appendChild(h);
+      }
+      grid = document.createElement("div"); grid.className = "grid"; shelf.appendChild(grid);
+      curSection = v.section; curGroup = v.group;
+    }
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "item";
+    const thumb = document.createElement("div");
+    thumb.className = "thumb";
+    if (v.youtube) {
+      const img = document.createElement("img");
+      img.loading = "lazy"; img.alt = "";
+      img.src = `https://i.ytimg.com/vi/${v.youtube}/hqdefault.jpg`;
+      thumb.appendChild(img);
+    } else {
+      const vid = document.createElement("video");
+      vid.preload = "metadata"; vid.muted = true; vid.playsInline = true;
+      vid.src = srcOf(v) + "#t=0.5";
+      vid.addEventListener("loadedmetadata", () => {
+        const d = document.createElement("span");
+        d.className = "dur"; d.textContent = fmt(vid.duration);
+        if (d.textContent) thumb.appendChild(d);
+        const p = parseFloat(store(posKey(v)));
+        if (p > 5 && vid.duration && p < vid.duration - 5) {
+          const bar = document.createElement("div");
+          bar.className = "bar"; bar.style.width = (p / vid.duration * 100) + "%";
+          thumb.appendChild(bar);
+        }
+      });
+      thumb.appendChild(vid);
+    }
+    const play = document.createElement("div");
+    play.className = "play"; play.textContent = "▶";
+    thumb.appendChild(play);
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const t = document.createElement("div"); t.className = "title"; t.textContent = v.title || "제목 없음";
+    const s = document.createElement("div"); s.className = "sub"; s.textContent = [v.date, v.note].filter(Boolean).join(" · ");
+    meta.append(t, s);
+    b.append(thumb, meta);
+    b.addEventListener("click", () => openVideo(v));
+    grid.appendChild(b);
+  });
+}
+
+function setSpeed(rate) {
+  const vid = playerBox.querySelector("video");
+  if (vid) vid.playbackRate = rate;
+  store("vs-speed", String(rate));
+  controls.querySelectorAll(".chip[data-rate]").forEach(c => c.classList.toggle("on", parseFloat(c.dataset.rate) === rate));
+}
+
+function openVideo(v) {
+  current = v;
+  dTitle.textContent = v.title || "제목 없음";
+  dSub.textContent = [v.date, v.note].filter(Boolean).join(" · ");
+  playerBox.innerHTML = "";
+  controls.querySelectorAll(".chip").forEach(c => c.remove());
+  if (v.youtube) {
+    const f = document.createElement("iframe");
+    f.src = `https://www.youtube-nocookie.com/embed/${v.youtube}?rel=0`;
+    f.allow = "accelerometer; autoplay; encrypted-media; picture-in-picture; fullscreen";
+    f.allowFullscreen = true;
+    playerBox.appendChild(f);
+    hint.textContent = "";
+  } else {
+    const vid = document.createElement("video");
+    vid.controls = true; vid.playsInline = true; vid.preload = "metadata"; vid.src = srcOf(v);
+    const saved = parseFloat(store(posKey(v)));
+    vid.addEventListener("loadedmetadata", () => {
+      if (saved > 5 && saved < vid.duration - 5) vid.currentTime = saved;
+      const rate = parseFloat(store("vs-speed")) || 1;
+      vid.playbackRate = rate;
+    });
+    let last = 0;
+    vid.addEventListener("timeupdate", () => {
+      if (Math.abs(vid.currentTime - last) >= 3) { last = vid.currentTime; store(posKey(v), String(vid.currentTime)); }
+    });
+    vid.addEventListener("ended", () => store(posKey(v), "0"));
+    vid.addEventListener("error", () => { hint.textContent = "영상을 불러오지 못했어요. 파일 경로와 형식(mp4 권장)을 확인해 주세요."; });
+    playerBox.appendChild(vid);
+    SPEEDS.forEach(r => {
+      const c = document.createElement("button");
+      c.type = "button"; c.className = "chip"; c.dataset.rate = r; c.textContent = r + "x";
+      c.addEventListener("click", () => setSpeed(r));
+      controls.appendChild(c);
+    });
+    hint.textContent = saved > 5 ? "이전에 보던 위치부터 이어서 재생해요. 키보드: 스페이스 재생/정지 · ←/→ 5초 이동" : "키보드: 스페이스 재생/정지 · ←/→ 5초 이동";
+    setSpeed(parseFloat(store("vs-speed")) || 1);
+  }
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button"; closeBtn.className = "chip close"; closeBtn.textContent = "닫기";
+  closeBtn.addEventListener("click", () => dlg.close());
+  controls.appendChild(closeBtn);
+  dlg.showModal();
+  if (!v.youtube) { const vid = playerBox.querySelector("video"); vid && vid.play().catch(() => {}); }
+}
+
+dlg.addEventListener("close", () => { playerBox.innerHTML = ""; current = null; render(); });
+dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+document.addEventListener("keydown", e => {
+  const vid = playerBox.querySelector("video");
+  if (!dlg.open || !vid) return;
+  if (e.key === " ") { e.preventDefault(); vid.paused ? vid.play() : vid.pause(); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); vid.currentTime = Math.min(vid.duration || 1e9, vid.currentTime + 5); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); vid.currentTime = Math.max(0, vid.currentTime - 5); }
+});
+searchEl.addEventListener("input", render);
+render();
+</script>
+</body>
+</html>
