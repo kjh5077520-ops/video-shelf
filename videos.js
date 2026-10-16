@@ -14,4 +14,5 @@ window.VIDEOS = [
   {"month": "9월", "category": "수업", "no": 4, "title": "중급1 Day4", "file": "videos/class/day4.mp4"},
   {"month": "9월", "category": "수업", "no": 5, "title": "중급1 Day5", "file": "videos/class/day5.mp4"},
   {"month": "9월", "category": "수업", "no": 6, "title": "중급1 Day6", "file": "videos/class/day6.mp4"},
+  {"month": "9월", "category": "특강", "no": 1, "title": "약속잡기", "file": "videos/special/tokgang.mp4"},
 ];
